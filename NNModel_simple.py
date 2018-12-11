@@ -10,6 +10,7 @@ from keras.callbacks import ModelCheckpoint, EarlyStopping
 from sklearn.base import BaseEstimator
 from sklearn.model_selection import train_test_split
 from sklearn.externals import joblib
+from uuid import uuid4
 
 
 class MorphVectorizer(BaseEstimator):
@@ -62,11 +63,25 @@ class NNModelSimple(BaseEstimator):
         self.h = keras.callbacks.History
 
     def fit(self, X, y):
+        # Для разделения на тренировочное и валидационное множества по ID пользователя
+        user_ids = []
+        for doc in X:
+            doc_user_id = doc["meta"].get("user_id", str(uuid4()))
+            if "user_id" not in doc["meta"]:
+                doc["meta"]["user_id"] = doc_user_id
+            user_ids.append(doc_user_id)
+
+        tr_user_ids, vl_user_ids = train_test_split(np.unique(user_ids), train_size=0.9, test_size=0.1)
+
         y = np.array([str(val) for val in y])
         self.y_label_enc.fit(y)
         self.morph_enc.fit(X)
         X = np.array(X)
-        X_tr, X_vl, y_tr, y_vl = train_test_split(X, y)
+
+        X_tr = np.array([doc for doc, user_id in zip(X, user_ids) if user_id in tr_user_ids])
+        X_vl = np.array([doc for doc, user_id in zip(X, user_ids) if user_id in vl_user_ids])
+        y_tr = np.array([doc for doc, user_id in zip(y, user_ids) if user_id in tr_user_ids])
+        y_vl = np.array([doc for doc, user_id in zip(y, user_ids) if user_id in vl_user_ids])
         y_tr_enc = self.y_label_enc.transform(y_tr)
         y_vl_enc = self.y_label_enc.transform(y_vl)
 

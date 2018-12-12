@@ -44,7 +44,8 @@ if __name__ == "__main__":
         inp, y = balance_data(inp, y, strategy="undersampling")
 
     if not os.path.exists(args.out_model_file):
-        os.makedirs(args.out_model_file)
+        if not args.out_model_file.endswith(".pkl"):
+            os.makedirs(args.out_model_file)
 
     if args.model_type == "CharNgram":
         model = CharNgramClassifier()

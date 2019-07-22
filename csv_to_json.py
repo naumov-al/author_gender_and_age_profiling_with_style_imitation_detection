@@ -74,7 +74,7 @@ def get_feats_string(feats, sep="|"):
     return res
 
 
-def text_to_json(text, model, sep="|"):
+def text_to_json(text, model, sep="|", parse_system="udpipe"):
     """
 
     Parameters
@@ -82,39 +82,71 @@ def text_to_json(text, model, sep="|"):
     text: str
     model: Model
     sep: str
-
+    parse_system: str
+    
     Returns
     -------
     l_sentences: list
     """
+    if parse_system == "spacy":
+        import spacy
+        
+        # Need installed English lang: python -m spacy download en
+        nlp = spacy.load('en')
+        tokens = nlp(text)
+        
+        tmp_text = str(text)
+        posStart_prev = 0
+        l_sentences = []
+        for sent in tokens.sents:
+            l_sent = []
+            for word in sent:
+                posStart = str.find(tmp_text, word.text, posStart_prev)
+                posStart_prev = posStart
+                d_word = {"id": word.orth,
+                          "forma":  word.text,
+                          "lemma": word.lemma_,
+                          "norm":  word.norm_,
+                          "pos": word.pos_,
+                          'tag': word.tag_,
+                          "grm": "",
+                          "len": word.__len__(),
+                          "posStart": posStart,
+                          "dom": word.head.text,
+                          "link": word["deprel"]}
+                l_sent.append(d_word)
+            l_sentences.append(l_sent)
+        
+    elif parse_system == "udpipe":
+        segmented = ufal.udpipe.Pipeline(model.model, "tokenize", ufal.udpipe.Pipeline.NONE, ufal.udpipe.Pipeline.NONE, "").process(text)
+        sentences = model.read(segmented, "conllu")
+        for sent in sentences:
+            model.tag(sent)
+            model.parse(sent)
+        res_conllu = model.write(sentences, "conllu")
 
-    segmented = ufal.udpipe.Pipeline(model.model, "tokenize", ufal.udpipe.Pipeline.NONE, ufal.udpipe.Pipeline.NONE, "").process(text)
-    sentences = model.read(segmented, "conllu")
-    for sent in sentences:
-        model.tag(sent)
-        model.parse(sent)
-    res_conllu = model.write(sentences, "conllu")
-
-    tmp_text = str(text)
-    posStart_prev = 0
-    l_sentences = []
-    for sent in conllu.parse(res_conllu):
-        l_sent = []
-        for word in sent:
-            posStart = str.find(tmp_text, word["form"], posStart_prev)
-            posStart_prev = posStart
-            d_word = {"id": word["id"],
-                      "forma": word["form"],
-                      "lemma": word["lemma"],
-                      "pos": word["upostag"],
-                      "grm": get_feats_string(word["feats"], sep=sep),
-                      "len": len(word["form"]),
-                      "posStart": posStart,
-                      "dom": word["head"],
-                      "link": word["deprel"]}
-            l_sent.append(d_word)
-        l_sentences.append(l_sent)
-
+        tmp_text = str(text)
+        posStart_prev = 0
+        l_sentences = []
+        for sent in conllu.parse(res_conllu):
+            l_sent = []
+            for word in sent:
+                posStart = str.find(tmp_text, word["form"], posStart_prev)
+                posStart_prev = posStart
+                d_word = {"id": word["id"],
+                          "forma": word["form"],
+                          "lemma": word["lemma"],
+                          "pos": word["upostag"],
+                          "grm": get_feats_string(word["feats"], sep=sep),
+                          "len": len(word["form"]),
+                          "posStart": posStart,
+                          "dom": word["head"],
+                          "link": word["deprel"]}
+                l_sent.append(d_word)
+            l_sentences.append(l_sent)
+    else:
+        print("Error. Unsupported parsing system. Use 'conll' or 'spacy'.")
+    
     return l_sentences
 
 
